@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import prisma from '../config/database';
 import { config } from '../config';
-import { NotificationType, NotificationChannel, UserRole } from '@prisma/client';
+import { NotificationType, NotificationChannel } from '@prisma/client';
 
 const transporter = nodemailer.createTransport({
   host: config.smtp.host,

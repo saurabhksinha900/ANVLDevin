@@ -95,7 +95,7 @@ export class JSOService {
       include: jsoInclude,
     });
 
-    const relatedEvent = await prisma.event.update({
+    await prisma.event.update({
       where: { id: jso.eventId },
       data: { status: 'RESOLVED', resolvedById: data.userId, resolvedAt: new Date() },
     });

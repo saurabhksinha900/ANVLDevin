@@ -1,6 +1,6 @@
 import prisma from '../config/database';
 import { EventType, EventStatus, FlagType, Severity, Prisma } from '@prisma/client';
-import { NotFoundError, ValidationError, ForbiddenError } from '../utils/errors';
+import { NotFoundError, ValidationError } from '../utils/errors';
 import { generateReferenceNumber } from '../utils/referenceNumber';
 import { auditService } from './audit.service';
 import { notificationService } from './notification.service';
