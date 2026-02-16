@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  TECHNICIAN
+  SUPERVISOR
+  HSE
+  ADMIN
+}
+
+enum JSAStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  STOPPED
+  CLOSED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EventType {
+  FLAG
+  STOP_JOB
+}
+
+enum EventStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  CLOSED
+}
+
+enum FlagType {
+  ASSISTANCE
+  CONCERN
+  INFORMATION
+}
+
+enum Severity {
+  MINOR
+  MAJOR
+  CRITICAL
+}
+
+enum JSOStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum EntityType {
+  JSA
+  JSO
+  FLAG
+  STOP_JOB
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  SUBMIT
+  APPROVE
+  REJECT
+  CLOSE
+  FLAG
+  STOP_JOB
+}
+
+enum NotificationType {
+  FLAG_RAISED
+  STOP_JOB
+  JSA_SUBMITTED
+  JSA_APPROVED
+  JSA_REJECTED
+  JSO_COMPLETED
+  LOW_SCORE
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  role          UserRole
+  businessUnit  String?   @map("business_unit")
+  site          String?
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  lastLoginAt   DateTime? @map("last_login_at")
+
+  createdJSAs     JSA[]          @relation("JSACreator")
+  reviewedJSAs    JSA[]          @relation("JSAReviewer")
+  createdEvents   Event[]        @relation("EventCreator")
+  resolvedEvents  Event[]        @relation("EventResolver")
+  assignedJSOs    JSO[]          @relation("JSOAssignee")
+  completedJSOs   JSO[]          @relation("JSOCompleter")
+  attachments     Attachment[]
+  auditEntries    AuditEntry[]
+  notifications   Notification[]
+  rulesConfigs    RulesConfig[]
+
+  @@map("users")
+}
+
+model JSA {
+  id              String    @id @default(uuid())
+  referenceNumber String    @unique @map("reference_number")
+  status          JSAStatus @default(DRAFT)
+  jobType         String    @map("job_type")
+  location        String
+  businessUnit    String    @map("business_unit")
+  dateOfWork      DateTime  @map("date_of_work") @db.Date
+  workOrder       String?   @map("work_order")
+  crewMembers     String[]  @map("crew_members")
+  jobDescription  String    @map("job_description")
+  additionalNotes String?   @map("additional_notes")
+  signatureData   String?   @map("signature_data")
+  strengthScore   Int?      @map("strength_score")
+  scoreBreakdown  Json?     @map("score_breakdown")
+  approvedSnapshot Json?    @map("approved_snapshot")
+  createdById     String    @map("created_by")
+  reviewedById    String?   @map("reviewed_by")
+  reviewComments  String?   @map("review_comments")
+  reviewedAt      DateTime? @map("reviewed_at")
+  submittedAt     DateTime? @map("submitted_at")
+  closedAt        DateTime? @map("closed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  createdBy   User   @relation("JSACreator", fields: [createdById], references: [id])
+  reviewedBy  User?  @relation("JSAReviewer", fields: [reviewedById], references: [id])
+
+  hazards         Hazard[]
+  ppeChecklist    PPEChecklistItem[]
+  attachments     Attachment[]
+  events          Event[]
+  jsos            JSO[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([businessUnit])
+  @@index([jobType])
+  @@index([dateOfWork])
+  @@index([strengthScore])
+  @@map("jsas")
+}
+
+model Hazard {
+  id            String    @id @default(uuid())
+  jsaId         String    @map("jsa_id")
+  category      String
+  description   String
+  riskLevel     RiskLevel @map("risk_level")
+  details       String?
+  lotoRequired  Boolean   @default(false) @map("loto_required")
+  lotoVerified  Boolean   @default(false) @map("loto_verified")
+  lotoNumber    String?   @map("loto_number")
+  sortOrder     Int       @default(0) @map("sort_order")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  jsa         JSA          @relation(fields: [jsaId], references: [id], onDelete: Cascade)
+  mitigations Mitigation[]
+
+  @@index([jsaId])
+  @@index([category])
+  @@map("hazards")
+}
+
+model Mitigation {
+  id          String   @id @default(uuid())
+  hazardId    String   @map("hazard_id")
+  description String
+  isCustom    Boolean  @default(false) @map("is_custom")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  hazard Hazard @relation(fields: [hazardId], references: [id], onDelete: Cascade)
+
+  @@index([hazardId])
+  @@map("mitigations")
+}
+
+model PPEChecklistItem {
+  id         String   @id @default(uuid())
+  jsaId      String   @map("jsa_id")
+  ppeType    String   @map("ppe_type")
+  label      String
+  isChecked  Boolean  @default(false) @map("is_checked")
+  isRequired Boolean  @default(false) @map("is_required")
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  jsa JSA @relation(fields: [jsaId], references: [id], onDelete: Cascade)
+
+  @@index([jsaId])
+  @@map("ppe_checklist_items")
+}
+
+model Attachment {
+  id           String     @id @default(uuid())
+  entityType   EntityType @map("entity_type")
+  entityId     String     @map("entity_id")
+  fileName     String     @map("file_name")
+  filePath     String     @map("file_path")
+  fileSize     Int        @map("file_size")
+  mimeType     String     @map("mime_type")
+  category     String?
+  uploadedById String     @map("uploaded_by")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+  jsa        JSA? @relation(fields: [entityId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("attachments")
+}
+
+model Event {
+  id              String      @id @default(uuid())
+  jsaId           String      @map("jsa_id")
+  eventType       EventType   @map("event_type")
+  status          EventStatus @default(OPEN)
+  flagType        FlagType?   @map("flag_type")
+  reason          String
+  severity        Severity?
+  resolvedById    String?     @map("resolved_by")
+  resolvedAt      DateTime?   @map("resolved_at")
+  resolutionNotes String?     @map("resolution_notes")
+  createdById     String      @map("created_by")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  jsa        JSA   @relation(fields: [jsaId], references: [id])
+  createdBy  User  @relation("EventCreator", fields: [createdById], references: [id])
+  resolvedBy User? @relation("EventResolver", fields: [resolvedById], references: [id])
+  jsos       JSO[]
+
+  @@index([jsaId])
+  @@index([eventType])
+  @@index([status])
+  @@map("events")
+}
+
+model JSO {
+  id                String    @id @default(uuid())
+  referenceNumber   String    @unique @map("reference_number")
+  jsaId             String    @map("jsa_id")
+  eventId           String    @map("event_id")
+  status            JSOStatus @default(PENDING)
+  rootCause         String?   @map("root_cause")
+  correctiveActions String?   @map("corrective_actions")
+  preventiveActions String?   @map("preventive_actions")
+  resolutionNotes   String?   @map("resolution_notes")
+  observerSignature String?   @map("observer_signature")
+  assignedToId      String    @map("assigned_to")
+  completedById     String?   @map("completed_by")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  jsa         JSA   @relation(fields: [jsaId], references: [id])
+  event       Event @relation(fields: [eventId], references: [id])
+  assignedTo  User  @relation("JSOAssignee", fields: [assignedToId], references: [id])
+  completedBy User? @relation("JSOCompleter", fields: [completedById], references: [id])
+
+  @@index([jsaId])
+  @@index([status])
+  @@index([assignedToId])
+  @@map("jsos")
+}
+
+model AuditEntry {
+  id             String      @id @default(uuid())
+  entityType     String      @map("entity_type")
+  entityId       String      @map("entity_id")
+  action         AuditAction
+  actorId        String      @map("actor_id")
+  beforeSnapshot Json?       @map("before_snapshot")
+  afterSnapshot  Json?       @map("after_snapshot")
+  ipAddress      String?     @map("ip_address")
+  userAgent      String?     @map("user_agent")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_entries")
+}
+
+model Notification {
+  id                String              @id @default(uuid())
+  recipientId       String              @map("recipient_id")
+  type              NotificationType
+  title             String
+  body              String
+  deepLink          String?             @map("deep_link")
+  channel           NotificationChannel
+  status            NotificationStatus  @default(PENDING)
+  sentAt            DateTime?           @map("sent_at")
+  readAt            DateTime?           @map("read_at")
+  relatedEntityType String?             @map("related_entity_type")
+  relatedEntityId   String?             @map("related_entity_id")
+  createdAt         DateTime            @default(now()) @map("created_at")
+
+  recipient User @relation(fields: [recipientId], references: [id])
+
+  @@index([recipientId])
+  @@index([status])
+  @@map("notifications")
+}
+
+model RulesConfig {
+  id          String   @id @default(uuid())
+  configType  String   @map("config_type")
+  configKey   String   @map("config_key")
+  configValue Json     @map("config_value")
+  version     Int      @default(1)
+  isActive    Boolean  @default(true) @map("is_active")
+  updatedById String   @map("updated_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  updatedBy User @relation(fields: [updatedById], references: [id])
+
+  @@unique([configType, configKey, version])
+  @@map("rules_configs")
+}
