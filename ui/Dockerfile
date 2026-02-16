@@ -1,5 +1,6 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
+RUN npm config set strict-ssl false
 COPY package*.json ./
 RUN npm ci
 COPY . .
